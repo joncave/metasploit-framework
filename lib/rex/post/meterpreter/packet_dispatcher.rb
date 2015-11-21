@@ -144,7 +144,7 @@ module PacketDispatcher
   #
   def send_packet(packet, completion_routine = nil, completion_param = nil)
     if (completion_routine)
-      add_response_waiter(packet, completion_routine, completion_param)
+      add_response_waiter(packet, false, completion_routine, completion_param)
     end
 
     bytes = 0
@@ -189,14 +189,11 @@ module PacketDispatcher
   # Sends a packet and waits for a timeout for the given time interval.
   #
   def send_request(packet, t = self.response_timeout)
-    if not t
-      send_packet(packet)
-      return nil
-    end
-
     response = send_packet_wait_response(packet, t)
 
-    if (response == nil)
+    if not t
+      return nil
+    elsif response == nil
       raise TimeoutError.new("Send timed out")
     elsif (response.result != 0)
       einfo = lookup_error(response.result)
@@ -215,12 +212,16 @@ module PacketDispatcher
   #
   def send_packet_wait_response(packet, t)
     # First, add the waiter association for the supplied packet
-    waiter = add_response_waiter(packet)
+    waiter = add_response_waiter(packet, t.nil?)
 
     # Transmit the packet
     if (send_packet(packet).to_i <= 0)
       # Remove the waiter if we failed to send the packet.
       remove_response_waiter(waiter)
+      return nil
+    end
+
+    if not t
       return nil
     end
 
@@ -442,8 +443,15 @@ module PacketDispatcher
   #
   # Adds a waiter association with the supplied request packet.
   #
-  def add_response_waiter(request, completion_routine = nil, completion_param = nil)
-    waiter = PacketResponseWaiter.new(request.rid, completion_routine, completion_param)
+  def add_response_waiter(request, dummy, completion_routine = nil, completion_param = nil)
+    # Garbage collection of dummy waiters sitting there to handle unwanted responses
+    if self.waiters.length > 25
+      self.waiters.select! do |waiter|
+        waiter.created_at.nil? or (::Time.now.to_i - waiter.created_at.to_i < PacketTimeout)
+      end
+    end
+
+    waiter = PacketResponseWaiter.new(request.rid, dummy, completion_routine, completion_param)
 
     self.waiters << waiter
 

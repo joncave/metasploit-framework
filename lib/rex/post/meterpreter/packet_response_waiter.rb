@@ -19,9 +19,13 @@ class PacketResponseWaiter
   # Initializes a response waiter instance for the supplied request
   # identifier.
   #
-  def initialize(rid, completion_routine = nil, completion_param = nil)
+  def initialize(rid, dummy, completion_routine = nil, completion_param = nil)
     self.rid      = rid.dup
     self.response = nil
+
+    if dummy
+      self.created_at = ::Time.now.to_i
+    end
 
     if (completion_routine)
       self.completion_routine = completion_routine
@@ -69,7 +73,7 @@ class PacketResponseWaiter
     return self.response
   end
 
-  attr_accessor :rid, :mutex, :cond, :response # :nodoc:
+  attr_accessor :rid, :mutex, :cond, :response, :created_at # :nodoc:
   attr_accessor :completion_routine, :completion_param # :nodoc:
 end
 

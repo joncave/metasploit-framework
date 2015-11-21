@@ -157,7 +157,7 @@ class Registry
 
     request.add_tlv(TLV_TYPE_HKEY, hkey)
 
-    client.send_packet(request)
+    client.send_packet_wait_response(request, nil)
 
     return true
   end
