@@ -65,6 +65,7 @@ module PacketDispatcher
     self.recv_queue = []
     self.waiters    = []
     self.alive      = true
+    self.ignored_packets = []
 
     # Ensure that there is only one leading and trailing slash on the URI
     resource_uri = "/" + self.conn_id.to_s.gsub(/(^\/|\/$)/, '') + "/"
@@ -94,6 +95,7 @@ module PacketDispatcher
     self.send_queue = []
     self.recv_queue = []
     self.waiters    = []
+    self.ignored_packets = []
 
     self.passive_service = nil
   end
@@ -190,7 +192,9 @@ module PacketDispatcher
   #
   def send_request(packet, t = self.response_timeout)
     if not t
-      send_packet(packet)
+      if send_packet(packet).to_i > 0
+        self.ignored_packets << packet.rid
+      end
       return nil
     end
 
@@ -242,7 +246,7 @@ module PacketDispatcher
   ##
   #
   # Monitors the PacketDispatcher's sock for data in its own
-  # thread context and parsers all inbound packets.
+  # thread context and parses all inbound packets.
   #
   def monitor_socket
 
@@ -252,6 +256,7 @@ module PacketDispatcher
     self.comm_mutex = ::Mutex.new
 
     self.waiters = []
+    self.ignored_packets = []
 
     @pqueue = ::Queue.new
     @finish = false
@@ -506,8 +511,13 @@ module PacketDispatcher
     client.last_checkin = Time.now
 
     # If the packet is a response, try to notify any potential
-    # waiters
+    # waiters or ignore it if appropriate
     if ((resp = packet.response?))
+      if self.ignored_packets.include? packet.rid
+        self.ignored_packets.delete(packet.rid)
+        return true
+      end
+
       if (notify_response_waiter(packet))
         return true
       end
@@ -555,6 +565,7 @@ module PacketDispatcher
 
 protected
 
+  attr_accessor :ignored_packets # Array of packet IDs for which the responses can be ignored
   attr_accessor :receiver_thread # :nodoc:
   attr_accessor :dispatcher_thread # :nodoc:
   attr_accessor :waiters # :nodoc:

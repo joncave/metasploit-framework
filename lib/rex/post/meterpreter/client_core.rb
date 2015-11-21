@@ -601,7 +601,7 @@ class ClientCore < Extension
 
     # If this is a standard TCP session, send and return
     if not client.passive_service
-      self.client.send_packet(request)
+      self.client.send_request(request, nil)
     else
       # If this is a HTTP/HTTPS session we need to wait a few seconds
       # otherwise the session may not receive the command before we
